@@ -1,0 +1,70 @@
+# 🗺️ Network Diagram
+
+## Topology
+
+```
+                        ┌─────────────────┐
+                        │   HOST MACHINE   │
+                        │  AMD Ryzen 7     │
+                        │  5700X           │
+                        └────────┬────────┘
+                                 │
+                    ┌────────────▼────────────┐
+                    │   VMware Workstation Pro │
+                    └────────────┬────────────┘
+                                 │
+              ┌──────────────────┴──────────────────┐
+              │                                      │
+     VMnet8 (NAT)                           VMnet1 (Host-only)
+     192.168.233.0/24                       192.168.1.0/24
+     DHCP: enabled                          DHCP: disabled
+              │                                      │
+              │ WAN                            LAN   │
+     ┌────────▼──────────────────────────────▼──────┐
+     │                   pfSense 2.8.1               │
+     │            Firewall + Router + IDS            │
+     │                                               │
+     │  WAN (em0): 192.168.233.130/24                │
+     │  LAN (em1): 192.168.1.1/24                    │
+     │  IDS: Suricata (ETOpen + Snort GPLv2)         │
+     └───────────────────┬───────────────────────────┘
+                         │
+              VMnet1 (Host-only, isolated)
+              192.168.1.0/24
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+ ┌────────▼────────┐           ┌────────▼────────┐
+ │   Kali Linux    │           │ Metasploitable 2 │
+ │  2025.4         │           │                  │
+ │  192.168.1.101  │ ────────► │  192.168.1.103   │
+ │                 │  attacks  │                  │
+ │  Role: Attacker │           │  Role: Target    │
+ └─────────────────┘           └──────────────────┘
+```
+
+## IP Address Table
+
+| Device | Interface | IP Address | Subnet | Role |
+|--------|-----------|-----------|--------|------|
+| pfSense | em0 (WAN) | 192.168.233.130 | /24 | Internet gateway |
+| pfSense | em1 (LAN) | 192.168.1.1 | /24 | Internal gateway + DHCP |
+| Kali Linux | eth0 | 192.168.1.101 | /24 | Attacker |
+| Metasploitable 2 | eth0 | 192.168.1.103 | /24 | Vulnerable target |
+
+## Virtual Network Configuration
+
+| VMware Network | Type | DHCP | Subnet | Connected To |
+|---------------|------|------|--------|-------------|
+| VMnet1 | Host-only | ❌ Disabled | 192.168.1.0/24 | pfSense LAN, Kali, Metasploitable2 |
+| VMnet8 | NAT | ✅ Enabled | 192.168.233.0/24 | pfSense WAN |
+
+## Traffic Flow
+
+```
+Kali → [192.168.1.0/24 LAN] → pfSense LAN (192.168.1.1)
+     → Suricata inspects traffic
+     → pfSense WAN (192.168.233.130)
+     → VMware NAT
+     → Internet
+```
